@@ -79,7 +79,7 @@ function generateResponseText(cf, host) {
 	const translatedData = translateFieldsToChinese(cf);
 	const additionalData = `GitHub: https://github.com/ymyuuu\nTelegram: https://t.me/HeroCore\n\nHost: ${host}${bestIP ? '\nBestIP: ' + bestIP : ''}\nProxyIP: ${proxyIP}\nUUID: ${userID}`;
 	const httpLinks = generateLinks(host, [80, 8080, 8880, 2052, 2086, 2095], 'none', 'none');
-	const isNotWorkersDev = !host.endsWith('workers.dev') && !host.endsWith('pages.dev');
+	const isNotWorkersDev = !host.endsWith('workers.dev')
 	let responseText = `ResponseText:\n${JSON.stringify(translatedData, null, 2)}\n\n${additionalData}\n\nHTTP Port: 80, 8080, 8880, 2052, 2086, 2095\n${httpLinks.join('\n')}`;
 	if (isNotWorkersDev) {
 		const httpsLinks = generateLinks(host, [443, 8443, 2053, 2096, 2087, 2083], 'none', 'tls', true);
