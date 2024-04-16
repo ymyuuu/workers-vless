@@ -4,7 +4,7 @@ import { connect } from 'cloudflare:sockets';
 
 const bestIP = "ipdb.rr.nu"; // 空字符串表示未设置
 const userID = '13516920-8ff7-4382-a55b-f0dc2c4378f7';
-const proxyIPs = ["47.74.49.62"];
+const proxyIPs = ["ipdb.rr.nu"];
 const proxyIP = proxyIPs[Math.floor(Math.random() * proxyIPs.length)];
 
 if (!isValidUUID(userID)) {
