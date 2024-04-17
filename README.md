@@ -1,7 +1,10 @@
 # Workers-Vless
 
-一个轻量级网络服务，提供连接信息和订阅信息。
+轻量级版本
 
+- 群聊: [HeroCore](https://t.me/HeroCore)
+- 频道: [HeroMsg](https://t.me/HeroMsg)
+  
 ## 端点
 
 - `/`：返回连接信息。
