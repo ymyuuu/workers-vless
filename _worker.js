@@ -3,7 +3,7 @@
 
 import { connect } from 'cloudflare:sockets';
 
-const userID = '13516920-8ff7-4382-a55b-f0dc2c4378f7';
+const userID = 'd51ac585-01f9-4e72-b4c5-5bd7b20979de';
 
 const bestIP = "bestcf.030101.xyz"; // 空字符串表示未设置
 const proxyIPs = ["bestproxy.030101.xyz"];
@@ -16,23 +16,6 @@ if (!isValidUUID(userID)) {
 
 // 将 main 移到全局作用域
 let main = bestIP || proxyIP;
-
-// 定义翻译映射关系
-const translationMap = {
-	"continent": "所在大洲",
-	"country": "所在国家",
-	"latitude": "纬度",
-	"longitude": "经度",
-	"timezone": "时区",
-	"asn": "自治系统号",
-	"httpProtocol": "HTTP协议版本",
-	"tlsCipher": "TLS加密套件",
-	"tlsVersion": "TLS协议版本",
-	"tlsExportedAuthenticator": "TLS握手信息",
-	"requestPriority": "请求优先级",
-	"asOrganization": "自治系统组织",
-	"colo": "所在数据中心位置"
-};
 
 export default {
 	async fetch(request, env, ctx) {
@@ -77,9 +60,10 @@ export default {
 };
 
 function generateResponseText(cf, host) {
-	const translatedData = translateFieldsToChinese(cf);
+	// 获取请求中的 Cloudflare 特定数据
+	const cloudflareData = JSON.stringify(cf, null, 2);
 	const additionalData = `GitHub: https://github.com/ymyuuu\nTelegram: https://t.me/HeroCore\n\nHost: ${host}${bestIP ? '\nBestIP: ' + bestIP : ''}\nProxyIP: ${proxyIP}\nUUID: ${userID}`;
-	let responseText = `ResponseText:\n${JSON.stringify(translatedData, null, 2)}\n\n${additionalData}`;
+	let responseText = `${cloudflareData}\n\n${additionalData}`;
 
 	const isWorkersDev = host.endsWith('workers.dev');
 	if (isWorkersDev) {
@@ -109,16 +93,6 @@ function generateAllLinks(host) {
 	}
 }
 
-function translateFieldsToChinese(data) {
-	const translatedData = {};
-	for (const key of Object.keys(translationMap)) {
-		if (data[key]) {
-			translatedData[translationMap[key]] = data[key];
-		}
-	}
-	return translatedData;
-}
-
 async function ymyuuuOverWSHandler(request) {
 
 	const webSocketPair = new WebSocketPair();
@@ -134,7 +108,6 @@ async function ymyuuuOverWSHandler(request) {
 	const earlyDataHeader = request.headers.get('sec-websocket-protocol') || '';
 
 	const readableWebSocketStream = makeReadableWebSocketStream(webSocket, earlyDataHeader, log);
-
 
 	let remoteSocketWapper = {
 		value: null,
