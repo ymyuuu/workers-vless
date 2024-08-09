@@ -34,7 +34,6 @@ const translationMap = {
 	"colo": "所在数据中心位置"
 };
 
-// 导出默认对象
 export default {
 	async fetch(request, env, ctx) {
 		try {
@@ -118,26 +117,6 @@ function translateFieldsToChinese(data) {
 		}
 	}
 	return translatedData;
-}
-
-// 生成链接
-function generateLinks(host, ports, encryption, security, isHTTPS = false) {
-    const protocol = "dmxlc3M="; // Base64 编码后的字符串 "dmxlc3M="
-	return ports.map(port =>
-		`${atob(protocol)}://${userID}@${main}:${port}?encryption=${encryption}&security=${security}${isHTTPS ? `&sni=${host}` : ''}&fp=random&type=ws&host=${host}&path=%2F%3D2048#CFW_${port}`
-	);
-}
-
-// 生成所有链接
-function generateAllLinks(host) {
-	const httpLinks = generateLinks(host, [80, 8080, 8880, 2052, 2086, 2095], 'none', 'none');
-	const isNotWorkersDev = !host.endsWith('workers.dev');
-	if (isNotWorkersDev) {
-		const httpsLinks = generateLinks(host, [443, 8443, 2053, 2096, 2087, 2083], 'none', 'tls', true);
-		return [...httpLinks, ...httpsLinks];
-	} else {
-		return httpLinks;
-	}
 }
 
 async function ymyuuuOverWSHandler(request) {
