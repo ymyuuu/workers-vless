@@ -5,8 +5,8 @@ import { connect } from 'cloudflare:sockets';
 
 const userID = '13516920-8ff7-4382-a55b-f0dc2c4378f7';
 
-const bestIP = "ipdb.rr.nu"; // 空字符串表示未设置
-const proxyIPs = ["ipdb.rr.nu"];
+const bestIP = "bestcf.030101.xyz"; // 空字符串表示未设置
+const proxyIPs = ["bestproxy.030101.xyz"];
 
 const proxyIP = proxyIPs[Math.floor(Math.random() * proxyIPs.length)];
 
