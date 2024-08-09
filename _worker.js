@@ -77,21 +77,39 @@ export default {
 	},
 };
 
-// 生成响应文本
 function generateResponseText(cf, host) {
 	const translatedData = translateFieldsToChinese(cf);
 	const additionalData = `GitHub: https://github.com/ymyuuu\nTelegram: https://t.me/HeroCore\n\nHost: ${host}${bestIP ? '\nBestIP: ' + bestIP : ''}\nProxyIP: ${proxyIP}\nUUID: ${userID}`;
-	const httpLinks = generateLinks(host, [80, 8080, 8880, 2052, 2086, 2095], 'none', 'none');
-	const isNotWorkersDev = !host.endsWith('workers.dev');
-	let responseText = `ResponseText:\n${JSON.stringify(translatedData, null, 2)}\n\n${additionalData}\n\nHTTP Port: 80, 8080, 8880, 2052, 2086, 2095\n${httpLinks.join('\n')}`;
-	if (isNotWorkersDev) {
+	let responseText = `ResponseText:\n${JSON.stringify(translatedData, null, 2)}\n\n${additionalData}`;
+
+	const isWorkersDev = host.endsWith('workers.dev');
+	if (isWorkersDev) {
+		const httpLinks = generateLinks(host, [80, 8080, 8880, 2052, 2086, 2095], 'none', 'none');
+		responseText += `\n\nHTTP Port: 80, 8080, 8880, 2052, 2086, 2095\n${httpLinks.join('\n')}`;
+	} else {
 		const httpsLinks = generateLinks(host, [443, 8443, 2053, 2096, 2087, 2083], 'none', 'tls', true);
 		responseText += `\n\nHTTPS Port: 443, 8443, 2053, 2096, 2087, 2083\n${httpsLinks.join('\n')}`;
 	}
+
 	return responseText;
 }
 
-// 将字段名翻译为中文
+function generateLinks(host, ports, encryption, security, isHTTPS = false) {
+    const protocol = "dmxlc3M="; // Base64 编码后的字符串 "dmxlc3M="
+	return ports.map(port =>
+		`${atob(protocol)}://${userID}@${main}:${port}?encryption=${encryption}&security=${security}${isHTTPS ? `&sni=${host}` : ''}&fp=random&type=ws&host=${host}&path=%2F%3D2048#CFW_${port}`
+	);
+}
+
+function generateAllLinks(host) {
+	const isWorkersDev = host.endsWith('workers.dev');
+	if (isWorkersDev) {
+		return generateLinks(host, [80, 8080, 8880, 2052, 2086, 2095], 'none', 'none');
+	} else {
+		return generateLinks(host, [443, 8443, 2053, 2096, 2087, 2083], 'none', 'tls', true);
+	}
+}
+
 function translateFieldsToChinese(data) {
 	const translatedData = {};
 	for (const key of Object.keys(translationMap)) {
