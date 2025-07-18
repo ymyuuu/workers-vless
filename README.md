@@ -7,5 +7,6 @@
   
 
 ## Update history
+- **20250718**： 删掉 NAT64，添加SOCKS5：/user:pass@host:port 或 /@host:port。
 - **20250527**：添加 NAT64。
 - **20240417**：修复了报错问题（错误代码：1101）。
