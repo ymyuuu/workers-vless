@@ -10,8 +10,14 @@ export default {
 			const [client, ws] = Object.values(new WebSocketPair());
 			ws.accept();
 
-			// 解析SOCKS5: /user:pass@host:port
-			const path = new URL(req.url).pathname.slice(1);
+			const u = new URL(req.url);
+
+			// 解析配置：?s5= 和 ?proxyip=
+			const s5Param = u.searchParams.get('s5');
+			const proxyParam = u.searchParams.get('proxyip');
+			const path = s5Param ? s5Param : u.pathname.slice(1);
+
+			// SOCKS5配置
 			const socks5 = path.includes('@') ? (() => {
 				const [cred, server] = path.split('@');
 				const [user, pass] = cred.split(':');
@@ -23,6 +29,9 @@ export default {
 					port: +port
 				};
 			})() : null;
+
+			// ProxyIP配置
+			const PROXY_IP = proxyParam ? String(proxyParam) : null;
 
 			let remote = null,
 				udpWriter = null,
@@ -66,7 +75,7 @@ export default {
 					// 协议验证
 					if (data.byteLength < 24) return;
 
-					// UUID验证 - 直接比较字节
+					// UUID验证
 					const uuidBytes = new Uint8Array(data.slice(1, 17));
 					const expectedUUID = UUID.replace(/-/g, '');
 					for (let i = 0; i < 16; i++) {
@@ -117,8 +126,7 @@ export default {
 						} = new TransformStream({
 							transform(chunk, ctrl) {
 								for (let i = 0; i < chunk.byteLength;) {
-									const len = new DataView(chunk.slice(i, i + 2))
-										.getUint16(0);
+									const len = new DataView(chunk.slice(i, i + 2)).getUint16(0);
 									ctrl.enqueue(chunk.slice(i + 2, i + 2 + len));
 									i += 2 + len;
 								}
@@ -129,22 +137,19 @@ export default {
 						readable.pipeTo(new WritableStream({
 							async write(query) {
 								try {
-									const resp = await fetch(
-										'https://1.1.1.1/dns-query', {
-											method: 'POST',
-											headers: {
-												'content-type': 'application/dns-message'
-											},
-											body: query
-										});
+									const resp = await fetch('https://1.1.1.1/dns-query', {
+										method: 'POST',
+										headers: {
+											'content-type': 'application/dns-message'
+										},
+										body: query
+									});
 
 									if (ws.readyState === 1) {
-										const result = new Uint8Array(await resp
-											.arrayBuffer());
+										const result = new Uint8Array(await resp.arrayBuffer());
 										ws.send(new Uint8Array([
 											...(sent ? [] : header),
-											result.length >> 8, result
-											.length & 0xff,
+											result.length >> 8, result.length & 0xff,
 											...result
 										]));
 										sent = true;
@@ -157,27 +162,31 @@ export default {
 						return udpWriter.write(payload);
 					}
 
-					// TCP连接
-					let sock;
+					// TCP连接 - 三级回退：直连 -> SOCKS5 -> ProxyIP
+					let sock = null;
+
+					// 1. 尝试直连
 					try {
 						sock = connect({
 							hostname: addr,
 							port
 						});
 						await sock.opened;
-					} catch (e) {
-						if (!socks5) return;
+					} catch {
+						sock = null;
+					}
 
-						// SOCKS5回退
-						sock = connect({
-							hostname: socks5.host,
-							port: socks5.port
-						});
-						await sock.opened;
-						const w = sock.writable.getWriter();
-						const r = sock.readable.getReader();
-
+					// 2. SOCKS5回退
+					if (!sock && socks5) {
 						try {
+							sock = connect({
+								hostname: socks5.host,
+								port: socks5.port
+							});
+							await sock.opened;
+							const w = sock.writable.getWriter();
+							const r = sock.readable.getReader();
+
 							// SOCKS5握手
 							await w.write(new Uint8Array([5, 2, 0, 2]));
 							const auth = (await r.read()).value;
@@ -186,26 +195,43 @@ export default {
 							if (auth[1] === 2 && socks5.user) {
 								const user = new TextEncoder().encode(socks5.user);
 								const pass = new TextEncoder().encode(socks5.pass);
-								await w.write(new Uint8Array([1, user.length, ...user, pass.length,
-									...pass
-								]));
+								await w.write(new Uint8Array([1, user.length, ...user, pass.length, ...pass]));
 								await r.read();
 							}
 
 							// 连接请求
 							const domain = new TextEncoder().encode(addr);
-							await w.write(new Uint8Array([5, 1, 0, 3, domain.length, ...domain,
-								port >> 8, port & 0xff
-							]));
+							await w.write(new Uint8Array([5, 1, 0, 3, domain.length, ...domain, port >> 8, port & 0xff]));
 							await r.read();
 
 							w.releaseLock();
 							r.releaseLock();
 						} catch {
-							sock.close();
-							return;
+							try {
+								sock?.close();
+							} catch {}
+							sock = null;
 						}
 					}
+
+					// 3. ProxyIP回退
+					if (!sock && PROXY_IP) {
+						try {
+							const [ph, pp = port] = PROXY_IP.split(':');
+							sock = connect({
+								hostname: ph,
+								port: +pp || port
+							});
+							await sock.opened;
+						} catch {
+							try {
+								sock?.close();
+							} catch {}
+							sock = null;
+						}
+					}
+
+					if (!sock) return;
 
 					remote = sock;
 					const w = sock.writable.getWriter();
@@ -217,9 +243,7 @@ export default {
 					sock.readable.pipeTo(new WritableStream({
 						write(chunk) {
 							if (ws.readyState === 1) {
-								ws.send(sent ? chunk : new Uint8Array([...header, ...
-									new Uint8Array(chunk)
-								]));
+								ws.send(sent ? chunk : new Uint8Array([...header, ...new Uint8Array(chunk)]));
 								sent = true;
 							}
 						},
