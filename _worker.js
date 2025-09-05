@@ -4,7 +4,7 @@ import {
 
 export default {
 	async fetch(req, env) {
-		const UUID = env.UUID || 'a1be847c-b42c-4581-bf4c-0ea5708869af';
+		const UUID = env.UUID || '4ba0eec8-25e1-4ab3-b188-fd8a70b53984';
 
 		if (req.headers.get('Upgrade')?.toLowerCase() === 'websocket') {
 			const [client, ws] = Object.values(new WebSocketPair());
@@ -30,9 +30,19 @@ export default {
 			})() : null;
 			const PROXY_IP = proxyParam ? String(proxyParam) : null;
 
-			// auto模式参数顺序
-			const getOrder = () => mode === 'auto' ? ['direct', ...u.search.match(/\b(s5|proxyip)\b/g)?.map(k =>
-				k === 'proxyip' ? 'proxy' : k) || ['s5', 'proxy']] : [mode];
+			// auto模式参数顺序（按URL参数位置）
+			const getOrder = () => {
+				if (mode !== 'auto') return [mode];
+				const order = [];
+				const searchStr = u.search.slice(1);
+				for (const pair of searchStr.split('&')) {
+					const key = pair.split('=')[0];
+					if (key === 'direct') order.push('direct');
+					else if (key === 's5') order.push('s5');
+					else if (key === 'proxyip') order.push('proxy');
+				}
+				return order;
+			};
 
 			let remote = null,
 				udpWriter = null,
