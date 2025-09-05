@@ -16,20 +16,7 @@ export default {
 			const proxyParam = u.searchParams.get('proxyip');
 			const path = s5Param ? s5Param : u.pathname.slice(1);
 
-			// 解析参数顺序
-			const paramOrder = [];
-			if (mode === 'auto') {
-				const searchStr = u.search.slice(1);
-				for (const pair of searchStr.split('&')) {
-					const key = pair.split('=')[0];
-					if (key === 's5') paramOrder.push('s5');
-					else if (key === 'proxyip') paramOrder.push('proxy');
-				}
-				if (!paramOrder.length) paramOrder.push('direct', 's5', 'proxy');
-				else paramOrder.unshift('direct');
-			}
-
-			// SOCKS5配置
+			// 解析SOCKS5和ProxyIP
 			const socks5 = path.includes('@') ? (() => {
 				const [cred, server] = path.split('@');
 				const [user, pass] = cred.split(':');
@@ -41,26 +28,30 @@ export default {
 					port: +port
 				};
 			})() : null;
-
 			const PROXY_IP = proxyParam ? String(proxyParam) : null;
+
+			// auto模式参数顺序
+			const getOrder = () => mode === 'auto' ? ['direct', ...u.search.match(/\b(s5|proxyip)\b/g)?.map(k =>
+				k === 'proxyip' ? 'proxy' : k) || ['s5', 'proxy']] : [mode];
+
 			let remote = null,
 				udpWriter = null,
 				isDNS = false;
 
 			// SOCKS5连接
-			const socks5Connect = async (s5, targetHost, targetPort) => {
+			const socks5Connect = async (targetHost, targetPort) => {
 				const sock = connect({
-					hostname: s5.host,
-					port: s5.port
+					hostname: socks5.host,
+					port: socks5.port
 				});
 				await sock.opened;
 				const w = sock.writable.getWriter();
 				const r = sock.readable.getReader();
 				await w.write(new Uint8Array([5, 2, 0, 2]));
 				const auth = (await r.read()).value;
-				if (auth[1] === 2 && s5.user) {
-					const user = new TextEncoder().encode(s5.user);
-					const pass = new TextEncoder().encode(s5.pass);
+				if (auth[1] === 2 && socks5.user) {
+					const user = new TextEncoder().encode(socks5.user);
+					const pass = new TextEncoder().encode(socks5.pass);
 					await w.write(new Uint8Array([1, user.length, ...user, pass.length, ...pass]));
 					await r.read();
 				}
@@ -74,32 +65,6 @@ export default {
 				return sock;
 			};
 
-			// 连接方法
-			const tryConnect = async (method, addr, port) => {
-				try {
-					if (method === 'direct') {
-						const sock = connect({
-							hostname: addr,
-							port
-						});
-						await sock.opened;
-						return sock;
-					} else if (method === 's5' && socks5) {
-						return await socks5Connect(socks5, addr, port);
-					} else if (method === 'proxy' && PROXY_IP) {
-						const [ph, pp = port] = PROXY_IP.split(':');
-						const sock = connect({
-							hostname: ph,
-							port: +pp || port
-						});
-						await sock.opened;
-						return sock;
-					}
-				} catch {}
-				return null;
-			};
-
-			// 创建处理流
 			new ReadableStream({
 				start(ctrl) {
 					ws.addEventListener('message', e => ctrl.enqueue(e.data));
@@ -112,7 +77,6 @@ export default {
 						ctrl.error();
 					});
 
-					// 0-RTT数据
 					const early = req.headers.get('sec-websocket-protocol');
 					if (early) {
 						try {
@@ -123,10 +87,7 @@ export default {
 				}
 			}).pipeTo(new WritableStream({
 				async write(data) {
-					// DNS UDP转发
 					if (isDNS) return udpWriter?.write(data);
-
-					// TCP数据转发
 					if (remote) {
 						const w = remote.writable.getWriter();
 						await w.write(data);
@@ -134,7 +95,6 @@ export default {
 						return;
 					}
 
-					// 协议验证
 					if (data.byteLength < 24) return;
 
 					// UUID验证
@@ -144,7 +104,6 @@ export default {
 						if (uuidBytes[i] !== parseInt(expectedUUID.substr(i * 2, 2), 16)) return;
 					}
 
-					// 解析VLess头
 					const view = new DataView(data);
 					const optLen = view.getUint8(17);
 					const cmd = view.getUint8(18 + optLen);
@@ -155,7 +114,6 @@ export default {
 					const type = view.getUint8(pos + 2);
 					pos += 3;
 
-					// 解析地址
 					let addr = '';
 					if (type === 1) {
 						addr =
@@ -167,20 +125,18 @@ export default {
 						pos += len;
 					} else if (type === 3) {
 						const ipv6 = [];
-						for (let i = 0; i < 8; i++, pos += 2) {
-							ipv6.push(view.getUint16(pos).toString(16));
-						}
+						for (let i = 0; i < 8; i++, pos += 2) ipv6.push(view.getUint16(pos)
+							.toString(16));
 						addr = ipv6.join(':');
 					} else return;
 
 					const header = new Uint8Array([data[0], 0]);
 					const payload = data.slice(pos);
 
-					// UDP DNS处理
+					// UDP DNS
 					if (cmd === 2) {
 						if (port !== 53) return;
 						isDNS = true;
-
 						let sent = false;
 						const {
 							readable,
@@ -207,40 +163,47 @@ export default {
 											},
 											body: query
 										});
-
 									if (ws.readyState === 1) {
 										const result = new Uint8Array(await resp
 											.arrayBuffer());
-										ws.send(new Uint8Array([
-											...(sent ? [] : header),
-											result.length >> 8, result
-											.length & 0xff,
-											...result
+										ws.send(new Uint8Array([...(sent ? [] :
+												header), result
+											.length >> 8, result
+											.length & 0xff, ...result
 										]));
 										sent = true;
 									}
 								} catch {}
 							}
 						}));
-
 						udpWriter = writable.getWriter();
 						return udpWriter.write(payload);
 					}
 
 					// TCP连接
 					let sock = null;
-
-					if (mode === 'direct') {
-						sock = await tryConnect('direct', addr, port);
-					} else if (mode === 's5') {
-						sock = await tryConnect('s5', addr, port);
-					} else if (mode === 'proxy') {
-						sock = await tryConnect('proxy', addr, port);
-					} else if (mode === 'auto') {
-						for (const method of paramOrder) {
-							sock = await tryConnect(method, addr, port);
-							if (sock) break;
-						}
+					for (const method of getOrder()) {
+						try {
+							if (method === 'direct') {
+								sock = connect({
+									hostname: addr,
+									port
+								});
+								await sock.opened;
+								break;
+							} else if (method === 's5' && socks5) {
+								sock = await socks5Connect(addr, port);
+								break;
+							} else if (method === 'proxy' && PROXY_IP) {
+								const [ph, pp = port] = PROXY_IP.split(':');
+								sock = connect({
+									hostname: ph,
+									port: +pp || port
+								});
+								await sock.opened;
+								break;
+							}
+						} catch {}
 					}
 
 					if (!sock) return;
@@ -250,7 +213,6 @@ export default {
 					await w.write(payload);
 					w.releaseLock();
 
-					// 数据转发
 					let sent = false;
 					sock.readable.pipeTo(new WritableStream({
 						write(chunk) {
@@ -273,7 +235,6 @@ export default {
 			});
 		}
 
-		// HTTP反向代理
 		const url = new URL(req.url);
 		url.hostname = 'example.com';
 		return fetch(new Request(url, req));
