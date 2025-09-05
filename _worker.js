@@ -20,7 +20,7 @@ export default {
 			const socks5 = path.includes('@') ? (() => {
 				const [cred, server] = path.split('@');
 				const [user, pass] = cred.split(':');
-				const [host, port = 1080] = server.split(':');
+				const [host, port = 443] = server.split(':');
 				return {
 					user,
 					pass,
