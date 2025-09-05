@@ -32,6 +32,7 @@ export default {
 
 			// auto模式参数顺序（按URL参数位置）
 			const getOrder = () => {
+				if (mode === 'proxy') return ['direct', 'proxy'];
 				if (mode !== 'auto') return [mode];
 				const order = [];
 				const searchStr = u.search.slice(1);
