@@ -4,7 +4,7 @@ import {
 
 export default {
 	async fetch(req, env) {
-		const UUID = env.UUID || '4ba0eec8-25e1-4ab3-b188-fd8a70b53984';
+		const UUID = env.UUID || 'a1be847c-b42c-4581-bf4c-0ea5708869af';
 
 		if (req.headers.get('Upgrade')?.toLowerCase() === 'websocket') {
 			const [client, ws] = Object.values(new WebSocketPair());
