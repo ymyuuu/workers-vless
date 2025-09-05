@@ -1,6 +1,6 @@
 # Workers-Vless
 
-轻量级版本，对抗2.0
+轻量级版本，对抗4.0
 
 - 群聊: [HeroCore](https://t.me/HeroCore)
 - 频道: [HeroMsg](https://t.me/HeroMsg)
