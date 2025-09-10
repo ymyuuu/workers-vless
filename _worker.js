@@ -11,6 +11,17 @@ export default {
 			ws.accept();
 
 			const u = new URL(req.url);
+
+			// 修复处理URL编码的查询参数  
+			if (u.pathname.includes('%3F')) {
+				const decoded = decodeURIComponent(u.pathname);
+				const queryIndex = decoded.indexOf('?');
+				if (queryIndex !== -1) {
+					u.search = decoded.substring(queryIndex);
+					u.pathname = decoded.substring(0, queryIndex);
+				}
+			}
+
 			const mode = u.searchParams.get('mode') || 'auto';
 			const s5Param = u.searchParams.get('s5');
 			const proxyParam = u.searchParams.get('proxyip');
@@ -42,7 +53,8 @@ export default {
 					else if (key === 's5') order.push('s5');
 					else if (key === 'proxyip') order.push('proxy');
 				}
-				return order;
+				// 没有参数时默认direct
+				return order.length ? order : ['direct'];
 			};
 
 			let remote = null,
